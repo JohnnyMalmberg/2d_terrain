@@ -16,10 +16,10 @@ public class VisibleTerrain : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        int resolution = (int)Mathf.Pow(2, 12);
+        int resolution = (int)Mathf.Pow(2, 11);
         Coordinate worldBottomLeft = Coordinate.Origin() - (resolution / 2);
         Coordinate worldTopRight = Coordinate.Origin() + ((resolution / 2) - 1);
-        this.tree = new QuadTree(worldBottomLeft, resolution, new Tile(false, 0));
+        this.tree = new QuadTree(worldBottomLeft, resolution, new Tile(false, false, false, false, 0));
 
         GetComponent<MeshFilter>().mesh = this.mesh = new Mesh();
         this.mesh.name = "Main Terrain Mesh";
@@ -31,14 +31,15 @@ public class VisibleTerrain : MonoBehaviour
         // Primitive World Generation
         // TODO: This is just a quick and dirty world generation, for the purposes of testing other features. Refactor and improve later
         // Fill bottom half with earth
-        this.tree.SetTileBox(worldBottomLeft, new Coordinate(resolution / 2, (int)(resolution * -0.07f)), new Tile(true, 0));
+        this.tree.SetTileBox(worldBottomLeft, new Coordinate(resolution / 2, (int)(resolution * -0.07f)), new Tile(true, false, false, false, 0));
 
+        Tile ground = new Tile(true, false, false, false, 0);
         // Fill in surface curve
         for (int i = worldBottomLeft.x; i <= worldTopRight.x; i++)
         {
             float noise = Mathf.PerlinNoise(5000 + i * 0.0137f, i * 0.01f);
             int height = (int)((noise * resolution) * 0.1f);
-            this.tree.SetTileBox(new Coordinate(i, (int)(resolution * -0.07f)), new Coordinate(i, height + (int)(resolution * -0.07f)), new Tile(true, 0));
+            this.tree.SetTileBox(new Coordinate(i, (int)(resolution * -0.07f)), new Coordinate(i, height + (int)(resolution * -0.07f)), ground);
             if (i % 256 == 0)
             {
                 this.tree.Simplify();
@@ -48,15 +49,16 @@ public class VisibleTerrain : MonoBehaviour
         // First simplification
         this.tree.Simplify();
 
+        Tile air = new Tile(false, false, false, false, 0);
         // Simple caves
-        for (int i = worldBottomLeft.x; i < worldTopRight.x; i++)
+        for (int i = worldBottomLeft.x; i <= worldTopRight.x; i++)
         {
-            for (int j = worldBottomLeft.y; j < worldTopRight.y; j++)
+            for (int j = worldBottomLeft.y; j <= worldTopRight.y; j++)
             {
                 float noise = Mathf.PerlinNoise(1000 + i * 0.01f, 800 + j * 0.01f);
                 if (noise > 0.7f)
                 {
-                    this.tree.SetTile(new Coordinate(i, j), new Tile(false, 0));
+                    this.tree.SetTile(new Coordinate(i, j), air);
                 }
                 if (i % 256 == 0 && j % 256 == 0)
                 {
@@ -117,7 +119,7 @@ public class VisibleTerrain : MonoBehaviour
                 }
             }
         }
-        if (tree.tile.isFilled)
+        if (tree.tile.IsFilled())
         {
             if (!hasSubTree)
             {

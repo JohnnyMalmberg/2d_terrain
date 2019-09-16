@@ -4,33 +4,60 @@ using UnityEngine;
 
 public struct Tile
 {
-    public bool isFilled;
-    public int id;
-    public Tile(bool isFilled, int id)
+    ushort data;
+    public Tile(bool isFilled, bool isBacked, bool hasTransparency, bool hasEntity, int id)
     {
-        this.isFilled = isFilled;
-        this.id = id;
+        int data32 = isFilled ? 0x8000 : 0;
+        data32 = data32 | (isBacked ? (0x4000) : 0);
+        data32 = data32 | (hasTransparency ? (0x2000) : 0);
+        data32 = data32 | (hasEntity ? (0x1000) : 0);
+        data32 = data32 | (0x0FFF & id);
+        this.data = (ushort)data32;
     }
 
     public Tile(Tile original)
     {
-        this.isFilled = original.isFilled;
-        this.id = original.id;
+        this.data = original.data;
     }
     public bool Mergable(Tile b)
     {
-        return (this.isFilled == b.isFilled) && (this.id == b.id);
+        return this.data == b.data;
+    }
+
+    public bool IsFilled()
+    {
+        return (this.data & 0x8000) != 0;
+    }
+
+    public bool IsBacked()
+    {
+        return (this.data & 0x4000) != 0;
+    }
+
+    public bool HasTransparency()
+    {
+        return (this.data & 0x2000) != 0;
+    }
+
+    public bool HasEntity()
+    {
+        return (this.data & 0x1000) != 0;
+    }
+
+    public int ID()
+    {
+        return this.data & 0x0FFF;
     }
 }
 
 public struct Coordinate
 {
-    public int x;
-    public int y;
+    public short x;
+    public short y;
     public Coordinate(int x, int y)
     {
-        this.x = x;
-        this.y = y;
+        this.x = (short)x;
+        this.y = (short)y;
     }
 
     public static Coordinate operator +(Coordinate a, Coordinate b)
@@ -82,7 +109,9 @@ public class QuadTree
     public Coordinate center;
     public Coordinate topRight;
 
-    public int scale;
+    // OPTIMIZATION NOTE: If memory usage becomes an issue, center and topRight can be calculated as-needed
+
+    public ushort scale;
 
     public QuadTree(Coordinate bottomLeft, int scale, Tile newTile)
     {
@@ -90,8 +119,8 @@ public class QuadTree
         this.bottomLeft = Coordinate.Origin() + bottomLeft;
         this.topRight = bottomLeft + (scale);
         this.center = bottomLeft + (scale / 2);
-        this.scale = scale;
-        this.tile = new Tile(newTile);
+        this.scale = (ushort)scale;
+        this.tile = newTile;
     }
 
     int GetSubTreeIndex(Coordinate coordinate)
@@ -149,7 +178,7 @@ public class QuadTree
 
         if (this.scale == 1)
         {
-            this.tile = new Tile(newTile);
+            this.tile = newTile;
             return true;
         }
 
@@ -175,7 +204,7 @@ public class QuadTree
             (this.topRight - 1).WithinBox(bottomLeft, topRight))
         {
             this.subTrees = new QuadTree[4];
-            this.tile = new Tile(newTile);
+            this.tile = newTile;
             return true;
         }
 
@@ -230,17 +259,17 @@ public class QuadTree
             return false;
         }
 
-        Tile simplifiedTile = (this.subTrees[0] == null) ? new Tile(this.tile) : new Tile(this.subTrees[0].tile);
+        Tile simplifiedTile = (this.subTrees[0] == null) ? this.tile : this.subTrees[0].tile;
         for (int i = 1; i < 4; i++)
         {
             Tile newSimplifiedTile;
             if (this.subTrees[i] != null)
             {
-                newSimplifiedTile = new Tile(this.subTrees[i].tile);
+                newSimplifiedTile = this.subTrees[i].tile;
             }
             else
             {
-                newSimplifiedTile = new Tile(this.tile);
+                newSimplifiedTile = this.tile;
             }
             if (!(simplifiedTile.Mergable(newSimplifiedTile)))
             {
@@ -248,7 +277,7 @@ public class QuadTree
             }
         }
 
-        this.tile = new Tile(simplifiedTile);
+        this.tile = simplifiedTile;
         //for (int i = 0; i < 4; i++)
         //{
         //    this.subTrees[i] = null;
