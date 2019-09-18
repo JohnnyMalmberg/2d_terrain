@@ -2,102 +2,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public struct Tile
-{
-    ushort data;
-    public Tile(bool isFilled, bool isBacked, bool hasTransparency, bool hasEntity, int id)
-    {
-        int data32 = isFilled ? 0x8000 : 0;
-        data32 = data32 | (isBacked ? (0x4000) : 0);
-        data32 = data32 | (hasTransparency ? (0x2000) : 0);
-        data32 = data32 | (hasEntity ? (0x1000) : 0);
-        data32 = data32 | (0x0FFF & id);
-        this.data = (ushort)data32;
-    }
-
-    public Tile(Tile original)
-    {
-        this.data = original.data;
-    }
-    public bool Mergable(Tile b)
-    {
-        return this.data == b.data;
-    }
-
-    public bool IsFilled()
-    {
-        return (this.data & 0x8000) != 0;
-    }
-
-    public bool IsBacked()
-    {
-        return (this.data & 0x4000) != 0;
-    }
-
-    public bool HasTransparency()
-    {
-        return (this.data & 0x2000) != 0;
-    }
-
-    public bool HasEntity()
-    {
-        return (this.data & 0x1000) != 0;
-    }
-
-    public int ID()
-    {
-        return this.data & 0x0FFF;
-    }
-}
-
-public struct Coordinate
-{
-    public short x;
-    public short y;
-    public Coordinate(int x, int y)
-    {
-        this.x = (short)x;
-        this.y = (short)y;
-    }
-
-    public static Coordinate operator +(Coordinate a, Coordinate b)
-    {
-        return new Coordinate(a.x + b.x, a.y + b.y);
-    }
 
 
-    public static Coordinate operator -(Coordinate a, Coordinate b)
-    {
-        return new Coordinate(a.x - b.x, a.y - b.y);
-    }
 
-    // Adding an int to a Coordinate means adding that value to both the x and y values
-    public static Coordinate operator +(Coordinate a, int b)
-    {
-        return new Coordinate(a.x + b, a.y + b);
-    }
-
-    public static Coordinate operator -(Coordinate a, int b)
-    {
-        return new Coordinate(a.x - b, a.y - b);
-    }
-
-    public bool WithinBox(Coordinate a, Coordinate b)
-    {
-        return (a.x <= this.x) && (this.x <= b.x) && (a.y <= this.y) && (this.y <= b.y);
-    }
-
-    public bool WithinCircle(Coordinate a, float radius)
-    {
-        float distance = Mathf.Sqrt(Mathf.Pow(this.x - a.x, 2f) + Mathf.Pow(this.y - a.y, 2f));
-        return (distance <= radius);
-    }
-
-    public static Coordinate Origin()
-    {
-        return new Coordinate(0, 0);
-    }
-}
 
 public class QuadTree
 {
@@ -120,7 +27,7 @@ public class QuadTree
         this.topRight = bottomLeft + (scale);
         this.center = bottomLeft + (scale / 2);
         this.scale = (ushort)scale;
-        this.tile = newTile;
+        this.tile = new Tile(newTile);
     }
 
     int GetSubTreeIndex(Coordinate coordinate)
@@ -178,7 +85,7 @@ public class QuadTree
 
         if (this.scale == 1)
         {
-            this.tile = newTile;
+            this.tile = new Tile(newTile);
             return true;
         }
 
@@ -188,6 +95,286 @@ public class QuadTree
             this.MakeSubTree(subTreeIndex, this.tile);
         }
         return this.subTrees[subTreeIndex].SetTile(coordinate, newTile);
+    }
+
+    public bool FillTile(Coordinate coordinate, bool fill = true)
+    {
+        if (!(coordinate.WithinBox(this.bottomLeft, this.topRight - 1)))
+        {
+            return false;
+        }
+
+        if (this.scale == 1)
+        {
+            this.tile.Fill(fill);
+            return true;
+        }
+
+        int subTreeIndex = this.GetSubTreeIndex(coordinate);
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+        }
+        return this.subTrees[subTreeIndex].FillTile(coordinate, fill);
+    }
+
+    public bool BackTile(Coordinate coordinate, bool back = true)
+    {
+        if (!(coordinate.WithinBox(this.bottomLeft, this.topRight - 1)))
+        {
+            return false;
+        }
+
+        if (this.scale == 1)
+        {
+            this.tile.Back(back);
+            return true;
+        }
+
+        int subTreeIndex = this.GetSubTreeIndex(coordinate);
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+        }
+        return this.subTrees[subTreeIndex].BackTile(coordinate, back);
+    }
+
+    public bool WireTile(Coordinate coordinate, bool wire = true)
+    {
+        if (!(coordinate.WithinBox(this.bottomLeft, this.topRight - 1)))
+        {
+            return false;
+        }
+
+        if (this.scale == 1)
+        {
+            this.tile.Wire(wire);
+            return true;
+        }
+
+        int subTreeIndex = this.GetSubTreeIndex(coordinate);
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+        }
+        return this.subTrees[subTreeIndex].WireTile(coordinate, wire);
+    }
+
+    public bool SetTileCircle(Vector2 center, float radius, Tile newTile)
+    {
+        Vector2 bl = center - new Vector2(radius, radius);
+        Vector2 tr = center + new Vector2(radius, radius);
+        if (bl.x >= this.topRight.x || this.bottomLeft.x > tr.x ||
+            bl.y >= this.topRight.y || this.bottomLeft.y > tr.y)
+        {
+            return false;
+        }
+
+        if (this.bottomLeft.WithinCircle(center, radius) &&
+            (this.topRight).WithinCircle(center, radius) &&
+            (new Coordinate(this.bottomLeft.x, this.topRight.y)).WithinCircle(center, radius) &&
+            (new Coordinate(this.topRight.x, this.bottomLeft.y)).WithinCircle(center, radius))
+        {
+            this.subTrees = new QuadTree[4];
+            this.tile = new Tile(newTile);
+            return true;
+        }
+
+        if (scale == 1)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            this.SetTileCircle_SubTree(i, center, radius, newTile);
+        }
+
+        return true;
+    }
+
+    bool SetTileCircle_SubTree(int subTreeIndex, Vector2 center, float radius, Tile newTile)
+    {
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+            if (this.subTrees[subTreeIndex].SetTileCircle(center, radius, newTile))
+            {
+                return true;
+            }
+            else
+            {
+                this.subTrees[subTreeIndex] = null;
+                return false;
+            }
+        }
+        return this.subTrees[subTreeIndex].SetTileCircle(center, radius, newTile);
+
+    }
+
+    public void Fill(bool fill = true)
+    {
+        if (this.scale <= 1)
+        {
+            this.tile.Fill(fill);
+            return;
+        }
+        for (int i = 0; i < 4; i++)
+        {
+            if (this.subTrees[i] == null)
+            {
+                this.MakeSubTree(i, this.tile);
+                this.subTrees[i].tile.Fill(fill);
+            }
+            else
+            {
+                this.subTrees[i].Fill(fill);
+            }
+        }
+    }
+
+    public void Back(bool back = true)
+    {
+        if (this.scale <= 1)
+        {
+            this.tile.Back(back);
+            return;
+        }
+        for (int i = 0; i < 4; i++)
+        {
+            if (this.subTrees[i] == null)
+            {
+                this.MakeSubTree(i, this.tile);
+                this.subTrees[i].tile.Back(back);
+            }
+            else
+            {
+                this.subTrees[i].Back(back);
+            }
+        }
+    }
+
+    public void Wire(bool wire = true)
+    {
+        if (this.scale <= 1)
+        {
+            this.tile.Wire(wire);
+            return;
+        }
+        for (int i = 0; i < 4; i++)
+        {
+            if (this.subTrees[i] == null)
+            {
+                this.MakeSubTree(i, this.tile);
+                this.subTrees[i].tile.Wire(wire);
+            }
+            else
+            {
+                this.subTrees[i].Wire(wire);
+            }
+        }
+    }
+
+    public bool FillTileCircle(Vector2 center, float radius, bool fill = true)
+    {
+        Vector2 bl = center - new Vector2(radius, radius);
+        Vector2 tr = center + new Vector2(radius, radius);
+        if (bl.x >= this.topRight.x || this.bottomLeft.x > tr.x ||
+            bl.y >= this.topRight.y || this.bottomLeft.y > tr.y)
+        {
+            return false;
+        }
+
+        if (this.bottomLeft.WithinCircle(center, radius) &&
+            (this.topRight).WithinCircle(center, radius) &&
+            (new Coordinate(this.bottomLeft.x, this.topRight.y)).WithinCircle(center, radius) &&
+            (new Coordinate(this.topRight.x, this.bottomLeft.y)).WithinCircle(center, radius))
+        {
+            this.Fill(fill);
+            return true;
+        }
+
+        if (scale == 1)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            this.FillTileCircle_SubTree(i, center, radius, fill);
+        }
+
+        return true;
+    }
+
+    bool FillTileCircle_SubTree(int subTreeIndex, Vector2 center, float radius, bool fill = true)
+    {
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+            if (this.subTrees[subTreeIndex].FillTileCircle(center, radius, fill))
+            {
+                return true;
+            }
+            else
+            {
+                this.subTrees[subTreeIndex] = null;
+                return false;
+            }
+        }
+        return this.subTrees[subTreeIndex].FillTileCircle(center, radius, fill);
+
+    }
+
+    public bool BackTileCircle(Vector2 center, float radius, bool back = true)
+    {
+        Vector2 bl = center - new Vector2(radius, radius);
+        Vector2 tr = center + new Vector2(radius, radius);
+        if (bl.x >= this.topRight.x || this.bottomLeft.x > tr.x ||
+            bl.y >= this.topRight.y || this.bottomLeft.y > tr.y)
+        {
+            return false;
+        }
+
+        if (this.bottomLeft.WithinCircle(center, radius) &&
+            (this.topRight).WithinCircle(center, radius) &&
+            (new Coordinate(this.bottomLeft.x, this.topRight.y)).WithinCircle(center, radius) &&
+            (new Coordinate(this.topRight.x, this.bottomLeft.y)).WithinCircle(center, radius))
+        {
+            this.Back(back);
+            return true;
+        }
+
+        if (scale == 1)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            this.BackTileCircle_SubTree(i, center, radius, back);
+        }
+
+        return true;
+    }
+
+    bool BackTileCircle_SubTree(int subTreeIndex, Vector2 center, float radius, bool back = true)
+    {
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+            if (this.subTrees[subTreeIndex].BackTileCircle(center, radius, back))
+            {
+                return true;
+            }
+            else
+            {
+                this.subTrees[subTreeIndex] = null;
+                return false;
+            }
+        }
+        return this.subTrees[subTreeIndex].BackTileCircle(center, radius, back);
+
     }
 
     public bool SetTileBox(Coordinate bottomLeft, Coordinate topRight, Tile newTile)
@@ -204,7 +391,7 @@ public class QuadTree
             (this.topRight - 1).WithinBox(bottomLeft, topRight))
         {
             this.subTrees = new QuadTree[4];
-            this.tile = newTile;
+            this.tile = new Tile(newTile);
             return true;
         }
 
@@ -216,7 +403,7 @@ public class QuadTree
         return true;
     }
 
-    public bool SetTileBox_SubTree(int subTreeIndex, Coordinate bottomLeft, Coordinate topRight, Tile newTile)
+    bool SetTileBox_SubTree(int subTreeIndex, Coordinate bottomLeft, Coordinate topRight, Tile newTile)
     {
         if (this.subTrees[subTreeIndex] == null)
         {
@@ -277,12 +464,13 @@ public class QuadTree
             }
         }
 
-        this.tile = simplifiedTile;
+        this.tile = new Tile(simplifiedTile);
         //for (int i = 0; i < 4; i++)
         //{
         //    this.subTrees[i] = null;
         //}
         this.subTrees = new QuadTree[4];
+
 
         return true;
     }
