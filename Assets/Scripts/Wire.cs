@@ -6,6 +6,12 @@ public class Wire
 {
     int orientation = 0;
     int signal = 0;
+    Coordinate coordinate;
+
+    public void SetCoordinate(Coordinate newCoordinate)
+    {
+        coordinate = newCoordinate;
+    }
     public int GetOrientation()
     {
         return orientation;
@@ -15,7 +21,7 @@ public class Wire
     {
         if (signal >= 0)
         {
-            return new Color((signal) / 64f, 0f, 0f);
+            return new Color((signal) / 64f, (signal) / 128f, 0f);
         }
         else
         {
@@ -23,13 +29,13 @@ public class Wire
         }
     }
 
-    public void ReOrient(Dictionary<Coordinate, Wire> wires, Coordinate coord)
+    public void ReOrient()
     {
         orientation = 0;
-        orientation = orientation | (wires.ContainsKey(coord.Up()) ? 8 : 0);
-        orientation = orientation | (wires.ContainsKey(coord.Right()) ? 4 : 0);
-        orientation = orientation | (wires.ContainsKey(coord.Down()) ? 2 : 0);
-        orientation = orientation | (wires.ContainsKey(coord.Left()) ? 1 : 0);
+        orientation = orientation | (World.wires.ContainsKey(coordinate.Up()) ? 8 : 0);
+        orientation = orientation | (World.wires.ContainsKey(coordinate.Right()) ? 4 : 0);
+        orientation = orientation | (World.wires.ContainsKey(coordinate.Down()) ? 2 : 0);
+        orientation = orientation | (World.wires.ContainsKey(coordinate.Left()) ? 1 : 0);
     }
 
     public int GetSignal()
@@ -37,12 +43,12 @@ public class Wire
         return signal;
     }
 
-    public void DiminishSignal()
+    public void EndSignal()
     {
-        signal /= 2;
+        signal = 0;
     }
 
-    public void SetSignal(int newSignal, Dictionary<Coordinate, Wire> wires, Dictionary<Coordinate, TileBehavior> tileBehaviors, Coordinate coord)
+    public void SetSignal(int newSignal)
     {
         if (Mathf.Abs(newSignal) <= Mathf.Abs(signal))
         {
@@ -57,10 +63,7 @@ public class Wire
             newSignal = -64;
         }
         signal = newSignal;
-        if (tileBehaviors.ContainsKey(coord))
-        {
-            tileBehaviors[coord].SignalUpdate(signal);
-        }
+
         if (newSignal > 0)
         {
             newSignal--;
@@ -71,55 +74,55 @@ public class Wire
         }
         if (newSignal != 0)
         {
-            Coordinate up = coord.Up();
-            Coordinate down = coord.Down();
-            Coordinate left = coord.Left();
-            Coordinate right = coord.Right();
-            if (wires.ContainsKey(up))
+            Coordinate up = coordinate.Up();
+            Coordinate down = coordinate.Down();
+            Coordinate left = coordinate.Left();
+            Coordinate right = coordinate.Right();
+            if (World.wires.ContainsKey(up))
             {
-                wires[up].SetSignal(newSignal, wires, tileBehaviors, up);
+                World.wires[up].SetSignal(newSignal);
             }
-            if (wires.ContainsKey(right))
+            if (World.wires.ContainsKey(right))
             {
-                wires[right].SetSignal(newSignal, wires, tileBehaviors, right);
+                World.wires[right].SetSignal(newSignal);
             }
-            if (wires.ContainsKey(down))
+            if (World.wires.ContainsKey(down))
             {
-                wires[down].SetSignal(newSignal, wires, tileBehaviors, down);
+                World.wires[down].SetSignal(newSignal);
             }
-            if (wires.ContainsKey(left))
+            if (World.wires.ContainsKey(left))
             {
-                wires[left].SetSignal(newSignal, wires, tileBehaviors, left);
+                World.wires[left].SetSignal(newSignal);
             }
         }
     }
 
-    public void Orient(Dictionary<Coordinate, Wire> wires, Coordinate coord)
+    public void Orient()
     {
         orientation = 0;
-        Coordinate up = coord.Up();
-        Coordinate down = coord.Down();
-        Coordinate left = coord.Left();
-        Coordinate right = coord.Right();
-        if (wires.ContainsKey(up))
+        Coordinate up = coordinate.Up();
+        Coordinate down = coordinate.Down();
+        Coordinate left = coordinate.Left();
+        Coordinate right = coordinate.Right();
+        if (World.wires.ContainsKey(up))
         {
             orientation = orientation | 8;
-            wires[up].ReOrient(wires, up);
+            World.wires[up].ReOrient();
         }
-        if (wires.ContainsKey(right))
+        if (World.wires.ContainsKey(right))
         {
             orientation = orientation | 4;
-            wires[right].ReOrient(wires, right);
+            World.wires[right].ReOrient();
         }
-        if (wires.ContainsKey(down))
+        if (World.wires.ContainsKey(down))
         {
             orientation = orientation | 2;
-            wires[down].ReOrient(wires, down);
+            World.wires[down].ReOrient();
         }
-        if (wires.ContainsKey(left))
+        if (World.wires.ContainsKey(left))
         {
             orientation = orientation | 1;
-            wires[left].ReOrient(wires, left);
+            World.wires[left].ReOrient();
         }
     }
 }

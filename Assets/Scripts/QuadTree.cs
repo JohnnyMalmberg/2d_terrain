@@ -118,6 +118,57 @@ public class QuadTree
         return this.subTrees[subTreeIndex].FillTile(coordinate, fill);
     }
 
+    // Without changing any other data at the location, insert a new tile
+    public bool InsertTile(Coordinate coordinate, TID id, bool hasBehavior, int spriteIndex)
+    {
+        if (!(coordinate.WithinBox(this.bottomLeft, this.topRight - 1)))
+        {
+            return false;
+        }
+
+        if (this.scale == 1)
+        {
+            this.tile.Fill();
+            this.tile.SetBehavior(hasBehavior);
+            this.tile.SetID(id);
+            this.tile.SetSprite(spriteIndex);
+            return true;
+        }
+
+        int subTreeIndex = this.GetSubTreeIndex(coordinate);
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+        }
+        return this.subTrees[subTreeIndex].InsertTile(coordinate, id, hasBehavior, spriteIndex);
+    }
+
+    // Removes ONLY the tile, not the backing, wire, etc.
+    // This does NOT handle behaviors: they must be handled externally by the caller
+    public bool RemoveTile(Coordinate coordinate)
+    {
+        if (!(coordinate.WithinBox(this.bottomLeft, this.topRight - 1)))
+        {
+            return false;
+        }
+
+        if (this.scale == 1)
+        {
+            this.tile.Fill(false);
+            this.tile.SetBehavior(false);
+            //this.tile.SetID(TID.NULL); // TODO: Backing IDs
+            this.tile.SetSprite(0);
+            return true;
+        }
+
+        int subTreeIndex = this.GetSubTreeIndex(coordinate);
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+        }
+        return this.subTrees[subTreeIndex].RemoveTile(coordinate);
+    }
+
     public bool BackTile(Coordinate coordinate, bool back = true)
     {
         if (!(coordinate.WithinBox(this.bottomLeft, this.topRight - 1)))
@@ -158,6 +209,27 @@ public class QuadTree
             this.MakeSubTree(subTreeIndex, this.tile);
         }
         return this.subTrees[subTreeIndex].WireTile(coordinate, wire);
+    }
+
+    public bool SetSpriteIndex(Coordinate coordinate, int spriteIndex)
+    {
+        if (!(coordinate.WithinBox(this.bottomLeft, this.topRight - 1)))
+        {
+            return false;
+        }
+
+        if (this.scale == 1)
+        {
+            this.tile.SetSprite(spriteIndex);
+            return true;
+        }
+
+        int subTreeIndex = this.GetSubTreeIndex(coordinate);
+        if (this.subTrees[subTreeIndex] == null)
+        {
+            this.MakeSubTree(subTreeIndex, this.tile);
+        }
+        return this.subTrees[subTreeIndex].SetSpriteIndex(coordinate, spriteIndex);
     }
 
     public bool SetTileCircle(Vector2 center, float radius, Tile newTile)

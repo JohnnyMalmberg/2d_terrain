@@ -44,7 +44,7 @@ public class SpriteTerrain : MonoBehaviour
         Vector3 screenTR = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, 0)) + new Vector3(1f, 1f, 0f);
         Vector3 screenDims = screenTR - screenBL;
         int tileRendererCount = ((int)screenDims.x + 1) * ((int)screenDims.y + 1);
-        tileRendererCount *= 2;
+        tileRendererCount *= 12;
         this.tileRenderers = new GameObject[tileRendererCount];
         this.spriteRenderers = new SpriteRenderer[tileRendererCount];
         for (int i = 0; i < tileRendererCount; i++)
@@ -269,66 +269,67 @@ public class SpriteTerrain : MonoBehaviour
                     }
                 }
             }
-            if (tree.tile.HasWire())
+
+        }
+        if (tree.tile.HasWire())
+        {
+            if (!hasSubTree)
             {
-                if (!hasSubTree)
+
+
+                Vector2 srSize = new Vector2(1, 1);
+                for (int i = 0; i < tree.scale; i++)
                 {
-
-
-                    Vector2 srSize = new Vector2(1, 1);
-                    for (int i = 0; i < tree.scale; i++)
+                    for (int j = 0; j < tree.scale; j++)
                     {
-                        for (int j = 0; j < tree.scale; j++)
+                        if (!(bl.x + i > screenTR.x || bl.y + j > screenTR.y || bl.x + i < screenBL.x || bl.y + j < screenBL.y))
                         {
-                            if (!(bl.x + i > screenTR.x || bl.y + j > screenTR.y || bl.x + i < screenBL.x || bl.y + j < screenBL.y))
-                            {
-                                Coordinate localCoord = new Coordinate(bl.x + i, bl.y + j);
-                                int spriteIndex = World.wires[localCoord].GetOrientation();
-                                Sprite[] spriteArray = TileInfo.sprites[TID.WIRE];
-                                Sprite sprite = spriteArray[spriteIndex];
-                                this.tileRenderers[spriteRendererIndex].transform.position = new Vector3(bl.x + i, bl.y + j, 12);
-                                spriteRenderers[spriteRendererIndex].sprite = sprite;
-                                spriteRenderers[spriteRendererIndex].size = srSize;
-                                spriteRenderers[spriteRendererIndex].color = World.wires[localCoord].GetColor();
-                                spriteRendererIndex++;
-                            }
+                            Coordinate localCoord = new Coordinate(bl.x + i, bl.y + j);
+                            int spriteIndex = World.wires[localCoord].GetOrientation();
+                            Sprite[] spriteArray = TileInfo.sprites[TID.WIRE];
+                            Sprite sprite = spriteArray[spriteIndex];
+                            this.tileRenderers[spriteRendererIndex].transform.position = new Vector3(bl.x + i, bl.y + j, 12);
+                            spriteRenderers[spriteRendererIndex].sprite = sprite;
+                            spriteRenderers[spriteRendererIndex].size = srSize;
+                            spriteRenderers[spriteRendererIndex].color = World.wires[localCoord].GetColor();
+                            spriteRendererIndex++;
                         }
                     }
-
                 }
-                else
+
+            }
+            else
+            {
+                for (int quadIndex = 0; quadIndex < 4; quadIndex++)
                 {
-                    for (int quadIndex = 0; quadIndex < 4; quadIndex++)
+                    if (tree.subTrees[quadIndex] == null)
                     {
-                        if (tree.subTrees[quadIndex] == null)
+                        bl = tree.GetSubTreeCoordinate(quadIndex);
+                        tr = bl + (tree.scale / 2);
+                        if (!(bl.x > screenTR.x || bl.y > screenTR.y || tr.x < screenBL.x || tr.y < screenBL.y))
                         {
-                            bl = tree.GetSubTreeCoordinate(quadIndex);
-                            tr = bl + (tree.scale / 2);
-                            if (!(bl.x > screenTR.x || bl.y > screenTR.y || tr.x < screenBL.x || tr.y < screenBL.y))
+
+
+                            Vector2 srSize = new Vector2(1, 1);
+                            for (int i = 0; i < tree.scale / 2; i++)
                             {
-
-
-                                Vector2 srSize = new Vector2(1, 1);
-                                for (int i = 0; i < tree.scale / 2; i++)
+                                for (int j = 0; j < tree.scale / 2; j++)
                                 {
-                                    for (int j = 0; j < tree.scale / 2; j++)
+                                    if (!(bl.x + i > screenTR.x || bl.y + j > screenTR.y || bl.x + i < screenBL.x || bl.y + j < screenBL.y))
                                     {
-                                        if (!(bl.x + i > screenTR.x || bl.y + j > screenTR.y || bl.x + i < screenBL.x || bl.y + j < screenBL.y))
-                                        {
-                                            Coordinate localCoord = new Coordinate(bl.x + i, bl.y + j);
-                                            int spriteIndex = World.wires[localCoord].GetOrientation();
-                                            Sprite[] spriteArray = TileInfo.sprites[TID.WIRE];
-                                            Sprite sprite = spriteArray[spriteIndex];
-                                            this.tileRenderers[spriteRendererIndex].transform.position = new Vector3(bl.x + i, bl.y + j, 12);
-                                            spriteRenderers[spriteRendererIndex].sprite = sprite;
-                                            spriteRenderers[spriteRendererIndex].size = srSize;
-                                            spriteRenderers[spriteRendererIndex].color = World.wires[localCoord].GetColor();
-                                            spriteRendererIndex++;
-                                        }
+                                        Coordinate localCoord = new Coordinate(bl.x + i, bl.y + j);
+                                        int spriteIndex = World.wires[localCoord].GetOrientation();
+                                        Sprite[] spriteArray = TileInfo.sprites[TID.WIRE];
+                                        Sprite sprite = spriteArray[spriteIndex];
+                                        this.tileRenderers[spriteRendererIndex].transform.position = new Vector3(bl.x + i, bl.y + j, 12);
+                                        spriteRenderers[spriteRendererIndex].sprite = sprite;
+                                        spriteRenderers[spriteRendererIndex].size = srSize;
+                                        spriteRenderers[spriteRendererIndex].color = World.wires[localCoord].GetColor();
+                                        spriteRendererIndex++;
                                     }
                                 }
-
                             }
+
                         }
                     }
                 }

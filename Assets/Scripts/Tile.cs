@@ -92,12 +92,29 @@ public class Tile
         this.data = (wire ? (this.data | Masks.WIRE) : (this.data & ~Masks.WIRE));
     }
 
+    public void SetSprite(int index)
+    {
+        this.data = this.data & ~Masks.SPRITE;
+        this.data = this.data | ((index << Masks.SPRITE_SHIFT) & Masks.SPRITE);
+    }
+
+    public void SetID(TID tileID)
+    {
+        this.data = this.data & ~Masks.TID;
+        this.data = this.data | (((int)tileID) & Masks.TID);
+    }
+
+    public void SetBehavior(bool behavior)
+    {
+        this.data = (behavior ? (this.data | Masks.BEHAVIOR) : (this.data & ~Masks.BEHAVIOR));
+    }
+
 
 }
 
 public enum TID
 {
-    NULL, STONE, DIRT, WIRE, BUTTON
+    NULL, STONE, DIRT, WIRE, BUTTON, SHIFTER
 }
 
 public static class TileInfo
@@ -108,7 +125,8 @@ public static class TileInfo
         {TID.STONE, "stone"},
         {TID.DIRT, "dirt"},
         {TID.WIRE, "wire"},
-        {TID.BUTTON, "debug"}
+        {TID.BUTTON, "button"},
+        {TID.SHIFTER, "shifter"}
     };
 
     public static readonly Dictionary<TID, int> spriteCounts = new Dictionary<TID, int> {
@@ -116,7 +134,8 @@ public static class TileInfo
         {TID.STONE, 1},
         {TID.DIRT, 1},
         {TID.WIRE, 16},
-        {TID.BUTTON, 2}
+        {TID.BUTTON, 4},
+        {TID.SHIFTER, 1}
     };
 
     public static Dictionary<TID, Sprite[]> sprites;

@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
 
 public static class World
 {
@@ -99,16 +100,37 @@ public static class World
         {
             tree.Simplify();
         }
-        if ((tick + 1) % 5 == 0)
+        if (tick % 5 == 0)
+        {
+            foreach (KeyValuePair<Coordinate, TileBehavior> entry in tileBehaviors)
+            {
+                if (entry.Value.active)
+                {
+                    entry.Value.ActiveUpdate();
+                }
+            }
+        }
+        if ((tick + 1) % 4 == 0)
         {
             foreach (KeyValuePair<Coordinate, Wire> entry in wires)
             {
-                entry.Value.DiminishSignal();
+                if (tileBehaviors.ContainsKey(entry.Key))
+                {
+                    tileBehaviors[entry.Key].SignalUpdate(entry.Value.GetSignal());
+                }
+                entry.Value.EndSignal();
             }
-            //foreach (KeyValuePair<Coordinate, TileBehavior> entry in tileBehaviors)
-            //{
-            //
-            //}
+            ExecuteTileMovements();
+            foreach (KeyValuePair<Coordinate, TileBehavior> entry in tileBehaviors)
+            {
+                if (entry.Value.signalEmitter)
+                {
+                    if (wires.ContainsKey(entry.Key))
+                    {
+                        wires[entry.Key].SetSignal(entry.Value.emissionValue);
+                    }
+                }
+            }
         }
 
         tick++;
@@ -125,7 +147,49 @@ public static class World
         tree.WireTile(coordinate);
         Wire newWire = new Wire();
         wires[coordinate] = newWire;
-        newWire.Orient(wires, coordinate);
+        newWire.SetCoordinate(coordinate);
+        newWire.Orient();
+    }
+
+    public static void SetSpriteIndex(Coordinate coordinate, int spriteIndex)
+    {
+        tree.SetSpriteIndex(coordinate, spriteIndex);
+    }
+
+    public static void PlaceTile(Coordinate coordinate, TID id, TileBehavior behavior, int spriteIndex)
+    {
+        Tile oldTile = tree.GetTile(coordinate);
+        if (oldTile.IsFilled())
+        {
+            return;
+        }
+        tree.InsertTile(coordinate, id, behavior != null, spriteIndex);
+        if (behavior != null)
+        {
+            behavior.coordinate = coordinate;
+            behavior.Initialize();
+            tileBehaviors[coordinate] = behavior;
+        }
+    }
+
+    public static void BreakTile(Coordinate coordinate)
+    {
+        if (tileBehaviors.ContainsKey(coordinate))
+        {
+            tileBehaviors[coordinate].OnDestruction();
+            tileBehaviors.Remove(coordinate);
+        }
+        tree.RemoveTile(coordinate);
+    }
+
+    public static void BreakTileAtCursor()
+    {
+        BreakTile(CursorCoordinate());
+    }
+
+    public static void PlaceTileAtCursor(TID id, TileBehavior behavior, int spriteIndex = 0)
+    {
+        PlaceTile(CursorCoordinate(), id, behavior, spriteIndex);
     }
 
     public static void PlaceWireAtCursor()
@@ -142,7 +206,7 @@ public static class World
         }
         if (wires.ContainsKey(cursor))
         {
-            wires[cursor].SetSignal(-64, wires, tileBehaviors, cursor);
+            //wires[cursor].SetSignal(-64, wires, tileBehaviors, cursor);
         }
     }
 
@@ -157,5 +221,78 @@ public static class World
     public static void AnnihilateAtCursor()
     {
         Annihilate(CursorCoordinate());
+    }
+
+    public static bool Full(Coordinate coordinate)
+    {
+        return tree.GetTile(coordinate).IsFilled();
+    }
+
+    public static Tile GetTile(Coordinate coordinate)
+    {
+        return tree.GetTile(coordinate);
+    }
+
+    public static int GetTick()
+    {
+        return tick;
+    }
+
+
+    public static List<Coordinate> tilesToMove = new List<Coordinate>();
+    public static List<Coordinate> destinations = new List<Coordinate>();
+    public static List<int> failedMovements = new List<int>();
+    public static void QueueTileMovement(Coordinate coordinate, Coordinate destination)
+    {
+        if (tree.GetTile(coordinate).IsFilled() && !tree.GetTile(destination).IsFilled())
+        {
+            int indexA = tilesToMove.IndexOf(coordinate);
+            int indexB = destinations.IndexOf(destination);
+            if (indexA == -1 && indexB == -1)
+            {
+                tilesToMove.Add(coordinate);
+                destinations.Add(destination);
+            }
+            else
+            {
+                if (indexA != -1)
+                {
+                    failedMovements.Add(indexA);
+                }
+                if (indexB != -1)
+                {
+                    failedMovements.Add(indexB);
+                }
+            }
+        }
+    }
+
+    public static void ExecuteTileMovements()
+    {
+        //List<Tile> tiles = new List<Tile>();
+        //failedMovements.Sort();
+        failedMovements = failedMovements.OrderByDescending(v => v).Distinct().ToList();
+        foreach (int failedMovement in failedMovements)
+        {
+            tilesToMove.RemoveAt(failedMovement);
+            destinations.RemoveAt(failedMovement);
+        }
+        for (int i = 0; i < tilesToMove.Count; i++)
+        {
+            Tile tile = new Tile(tree.GetTile(tilesToMove[i]));
+            tree.RemoveTile(tilesToMove[i]);
+            if (tile.HasBehavior())
+            {
+                TileBehavior behavior = tileBehaviors[tilesToMove[i]];
+                behavior.coordinate = destinations[i];
+                tileBehaviors.Remove(tilesToMove[i]);
+                tileBehaviors.Add(destinations[i], behavior);
+            }
+            tree.InsertTile(destinations[i], tile.ID(), tile.HasBehavior(), tile.SpriteIndex());
+        }
+
+        tilesToMove.Clear();
+        destinations.Clear();
+        failedMovements.Clear();
     }
 }

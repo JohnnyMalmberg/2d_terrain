@@ -5,7 +5,15 @@ using UnityEngine;
 public abstract class TileBehavior
 {
     public bool active;
+    public bool signalEmitter = false;
+    public int emissionValue = 0;
     public float updateChance = 0f;
+    public Coordinate coordinate;
+
+    public virtual void Initialize()
+    {
+
+    }
     public virtual void ActiveUpdate()
     {
         active = false;
