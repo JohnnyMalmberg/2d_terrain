@@ -19,13 +19,17 @@ public class Wire
 
     public Color GetColor()
     {
-        if (signal >= 0)
+        if (signal > 0)
         {
-            return new Color((signal) / 64f, (signal) / 128f, 0f);
+            return new Color(0.5f + (signal) / 64f, 0.25f + (signal) / 128f, 0f);
+        }
+        else if (signal < 0)
+        {
+            return new Color(0f, 0f, 0.5f + Mathf.Abs(signal) / 64f);
         }
         else
         {
-            return new Color(0f, 0f, Mathf.Abs(signal) / 64f);
+            return Color.black;
         }
     }
 
@@ -54,13 +58,13 @@ public class Wire
         {
             return;
         }
-        if (newSignal > 64)
+        if (newSignal > 32)
         {
-            newSignal = 64;
+            newSignal = 32;
         }
-        else if (newSignal < -64)
+        else if (newSignal < -32)
         {
-            newSignal = -64;
+            newSignal = -32;
         }
         signal = newSignal;
 
