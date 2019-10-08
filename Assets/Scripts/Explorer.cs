@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Explorer : MonoBehaviour
+public class Explorer : DynamicEntity
 {
 
     public GameObject beam;
@@ -15,8 +15,13 @@ public class Explorer : MonoBehaviour
     Coordinate selector1;
     Coordinate selector2;
 
+    Vector2 vectorSelector1;
+    Vector2 vectorSelector2;
+
     public Sprite markerSprite;
 
+    public int maxEnergy;
+    public int energy;
 
     // Start is called before the first frame update
     void Start()
@@ -25,14 +30,45 @@ public class Explorer : MonoBehaviour
         destructionQueue = new Queue<Coordinate>();
         destructionMarkers = new List<GameObject>();
         selector1 = selector2 = null;
+        maxEnergy = energy = 1000;
     }
 
-    // Update is called once per frame
-    void Update()
+    public override void PreparePhysics()
     {
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            Debug.Log(transform.position);
+        }
+
         float xInput = Input.GetAxis("Horizontal") * 0.4f;
-        float yInput = Input.GetAxis("Vertical") * 0.4f;
-        this.transform.Translate(xInput, yInput, 0f);
+
+        if (Input.GetKey(KeyCode.Space) && canJump)
+        {
+            velocity += Vector3.up * 0.42f;
+            canJump = false;
+        }
+
+        velocity += Vector3.down * gravity;
+        velocity += Vector3.right * xInput;
+
+        velocity.x *= 0.4f;
+        if (Mathf.Abs(velocity.x) > 15f)
+        {
+            velocity.x /= Mathf.Abs(velocity.x);
+            velocity.x *= 5f;
+        }
+        if (Mathf.Abs(velocity.y) > 15f)
+        {
+            velocity.y /= Mathf.Abs(velocity.y);
+            velocity.y *= 5f;
+        }
+
+
+        Vector3 oldPosition = Camera.main.transform.position;
+        Vector3 cameraTarget = transform.position;
+        cameraTarget.z = oldPosition.z;
+        Camera.main.transform.position = (oldPosition * 7f + cameraTarget) / 8f;
+
         if (xInput < 0)
         {
             transform.localScale = new Vector3(-1, 1, 1);
@@ -41,6 +77,67 @@ public class Explorer : MonoBehaviour
         {
             transform.localScale = new Vector3(1, 1, 1);
         }
+    }
+
+    public override void Tick()
+    {
+        if (destructionQueue.Count > 0)
+        {
+            if (energy >= 20)
+            {
+                energy -= 20;
+                Coordinate target = destructionQueue.Dequeue();
+                World.BreakTile(target);
+                Vector3 targetPosition = new Vector3(target.x + 0.5f, target.y + 0.5f, -1.5f);
+                Vector3 difference = targetPosition - beam.transform.position;
+                float distance = difference.magnitude;
+                beam.transform.localScale = new Vector3(distance, 1, 1);
+                float angle = Vector3.Angle(difference, Vector3.right);
+                if (head.transform.position.y > targetPosition.y)
+                {
+                    angle = -angle;
+                }
+                if (transform.localScale.x < 0)
+                {
+                    angle += 180;
+                }
+                head.transform.eulerAngles = new Vector3(0, 0, angle);
+            }
+            else
+            {
+                beam.transform.localScale = new Vector3(0, 0, 0);
+            }
+        }
+        else
+        {
+            Vector3 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            mousePosition.z = head.transform.position.z;
+            Vector3 difference = mousePosition - head.transform.position;
+            float angle = Vector3.Angle(difference, Vector3.right);
+            if (head.transform.position.y > mousePosition.y)
+            {
+                angle = -angle;
+            }
+            if (transform.localScale.x < 0)
+            {
+                angle += 180;
+            }
+
+            head.transform.eulerAngles = new Vector3(0, 0, angle);
+            beam.transform.localScale = new Vector3(0, 0, 0);
+        }
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        if (energy < maxEnergy)
+        {
+            energy += 1000;
+        }
+
+
+
         if (Input.GetKey(KeyCode.LeftControl))
         {
             Camera.main.orthographicSize -= Input.mouseScrollDelta.y * 0.8f;
@@ -63,11 +160,11 @@ public class Explorer : MonoBehaviour
         {
             World.PlaceWireAtCursor();
         }
-        if (Input.GetKey(KeyCode.K))
+        if (Input.GetKeyDown(KeyCode.R))
         {
             selector1 = World.CursorCoordinate();
         }
-        if (Input.GetKey(KeyCode.L) && selector1 != null)
+        if (Input.GetKeyUp(KeyCode.R) && selector1 != null)
         {
             selector2 = World.CursorCoordinate();
             int bottomX = selector1.x < selector2.x ? selector1.x : selector2.x;
@@ -88,9 +185,46 @@ public class Explorer : MonoBehaviour
                             marker.AddComponent(typeof(SpriteRenderer));
                             SpriteRenderer sr = marker.GetComponent<SpriteRenderer>();
                             sr.sprite = markerSprite;
-                            sr.color = new Color(0f, 1f, 0f, 0.2f);
+                            sr.color = new Color(0f, 1f, 0f);
                             marker.transform.position = new Vector3(target.x, target.y, -0.5f);
                             destructionMarkers.Add(marker);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.C))
+        {
+            Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            vectorSelector1 = new Vector2(mousePos.x, mousePos.y);
+        }
+        if (Input.GetKeyUp(KeyCode.C))
+        {
+            Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            vectorSelector2 = new Vector2(mousePos.x, mousePos.y);
+            float radius = Mathf.Abs((vectorSelector1 - vectorSelector2).magnitude);
+            for (int i = (int)(vectorSelector1.x - radius - 1); i <= vectorSelector1.x + radius + 1; i++)
+            {
+                for (int j = (int)(vectorSelector1.y - radius - 1); j <= vectorSelector1.y + radius + 1; j++)
+                {
+                    Vector2 pos = new Vector2(i, j);
+                    float posRad = Mathf.Abs((vectorSelector1 - pos).magnitude);
+                    if (posRad < radius)
+                    {
+                        Coordinate target = new Coordinate(i, j);
+                        if (World.Full(target))
+                        {
+                            if (destructionSet.Add(target))
+                            {
+                                GameObject marker = new GameObject();
+                                marker.AddComponent(typeof(SpriteRenderer));
+                                SpriteRenderer sr = marker.GetComponent<SpriteRenderer>();
+                                sr.sprite = markerSprite;
+                                sr.color = new Color(0f, 1f, 0f);
+                                marker.transform.position = new Vector3(target.x, target.y, -0.5f);
+                                destructionMarkers.Add(marker);
+                            }
                         }
                     }
                 }
@@ -107,6 +241,7 @@ public class Explorer : MonoBehaviour
         if (Input.GetKey(KeyCode.F))
         {
             World.tree.FillTile(World.CursorCoordinate());
+            World.worldRenderer.UpdateAtCoordinate(World.CursorCoordinate());
         }
 
 
@@ -127,7 +262,7 @@ public class Explorer : MonoBehaviour
                     marker.AddComponent(typeof(SpriteRenderer));
                     SpriteRenderer sr = marker.GetComponent<SpriteRenderer>();
                     sr.sprite = markerSprite;
-                    sr.color = new Color(0f, 1f, 0f, 0.2f);
+                    sr.color = new Color(0f, 1f, 0f);
                     marker.transform.position = new Vector3(cursor.x, cursor.y, -0.5f);
                     destructionMarkers.Add(marker);
                 }
@@ -135,6 +270,7 @@ public class Explorer : MonoBehaviour
         }
         if (Input.GetKeyDown(KeyCode.X))
         {
+            destructionQueue.Clear();
             foreach (Coordinate target in destructionSet)
             {
                 destructionQueue.Enqueue(target);
@@ -163,41 +299,6 @@ public class Explorer : MonoBehaviour
             World.PlaceTileAtCursor(TID.SHIFTER, new T_Shifter());
         }
 
-        if (destructionQueue.Count > 0)
-        {
-            Coordinate target = destructionQueue.Dequeue();
-            World.BreakTile(target);
-            Vector3 targetPosition = new Vector3(target.x + 0.5f, target.y + 0.5f, -1.5f);
-            Vector3 difference = targetPosition - beam.transform.position;
-            float distance = difference.magnitude;
-            beam.transform.localScale = new Vector3(distance, 1, 1);
-            float angle = Vector3.Angle(difference, Vector3.right);
-            if (head.transform.position.y > targetPosition.y)
-            {
-                angle = -angle;
-            }
-            if (transform.localScale.x < 0)
-            {
-                angle += 180;
-            }
-            head.transform.eulerAngles = new Vector3(0, 0, angle);
-        }
-        else
-        {
-            Vector3 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            mousePosition.z = head.transform.position.z;
-            Vector3 difference = mousePosition - head.transform.position;
-            float angle = Vector3.Angle(difference, Vector3.right);
-            if (head.transform.position.y > mousePosition.y)
-            {
-                angle = -angle;
-            }
-            if (transform.localScale.x < 0)
-            {
-                angle += 180;
-            }
-            head.transform.eulerAngles = new Vector3(0, 0, angle);
-            beam.transform.localScale = new Vector3(0, 0, 0);
-        }
+
     }
 }

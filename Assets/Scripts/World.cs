@@ -10,29 +10,62 @@ public static class World
     public static Dictionary<Coordinate, int> overlays;
     public static Dictionary<Coordinate, Wire> wires;
 
+    public static WorldRenderer worldRenderer;
+
+    public static Dictionary<int, DynamicEntity> dynamicEntities = new Dictionary<int, DynamicEntity>();
+
     static int resolution;
 
     public static bool treeExists = false;
 
     static int tick;
 
+    static bool paused = true;
+
+    public static int[][] aestheticRandoms;
+
+    public static int RegisterDynamicEntity(DynamicEntity entity)
+    {
+        for (int i = 0; i <= dynamicEntities.Count; i++)
+        {
+            if (!dynamicEntities.ContainsKey(i))
+            {
+                dynamicEntities.Add(i, entity);
+                return i;
+            }
+        }
+        Debug.LogError("DynamicEntity Registration Failed");
+        return -1;
+    }
+
     public static void SetResolution(int _resolution)
     {
         resolution = _resolution;
+
+        aestheticRandoms = new int[256][];
+        for (int i = 0; i < 256; i++)
+        {
+            aestheticRandoms[i] = new int[256];
+            for (int j = 0; j < 256; j++)
+            {
+                aestheticRandoms[i][j] = Random.Range(0, 8192);
+            }
+        }
     }
 
     public static void Generate()
     {
         Coordinate worldBottomLeft = Coordinate.Origin() - (resolution / 2);
         Coordinate worldTopRight = Coordinate.Origin() + ((resolution / 2) - 1);
-        tree = new QuadTree(worldBottomLeft, resolution, new Tile(TID.NULL));
+        tree = new QuadTree(worldBottomLeft, resolution, new Tile(false, false, TID.NULL, BID.NULL));
 
 
 
         Debug.Log("--> Filling earth...");
 
-        Tile stone = new Tile(TID.STONE, true, true);
-        Tile dirt = new Tile(TID.DIRT, true, true);
+        Tile stone = new Tile(true, true, TID.STONE, BID.STONE);
+        Tile dirt = new Tile(true, true, TID.DIRT, BID.DIRT);
+        Tile garbage = new Tile(true, false, TID.GARBAGE_MIXED, BID.NULL);
         // Fill bottom half with earth
         tree.SetTileBox(worldBottomLeft, new Coordinate(resolution / 2, 0), stone);
 
@@ -42,8 +75,9 @@ public static class World
         {
             float noise = Mathf.PerlinNoise(5000 + i * 0.0237f, i * 0.01f);
             int height = (int)((noise * 300) * 0.1f);
-            tree.SetTileBox(new Coordinate(i, 0), new Coordinate(i, height - 5), stone);
-            tree.SetTileBox(new Coordinate(i, height - 4), new Coordinate(i, height), dirt);
+            tree.SetTileBox(new Coordinate(i, 0), new Coordinate(i, height - 60), stone);
+            tree.SetTileBox(new Coordinate(i, height - 59), new Coordinate(i, height - 20), dirt);
+            tree.SetTileBox(new Coordinate(i, height - 19), new Coordinate(i, height), garbage);
             if (i % 256 == 0)
             {
                 //Debug.Log("        Simplifying...");
@@ -91,12 +125,30 @@ public static class World
         wires = new Dictionary<Coordinate, Wire>();
         overlays = new Dictionary<Coordinate, int>();
 
+
+
         treeExists = true;
+        Unpause();
+    }
+
+    public static void Pause()
+    {
+        paused = true;
+    }
+
+    public static void Unpause()
+    {
+        paused = false;
+    }
+
+    public static bool Paused()
+    {
+        return paused;
     }
 
     public static void Tick()
     {
-        if (tick % 10 == 0)
+        if (tick % 100 == 0)
         {
             tree.Simplify();
         }
@@ -110,7 +162,7 @@ public static class World
                 }
             }
         }
-        if ((tick + 1) % 4 == 0)
+        if ((tick) % 2 == 0)
         {
             foreach (KeyValuePair<Coordinate, Wire> entry in wires)
             {
@@ -149,11 +201,17 @@ public static class World
         wires[coordinate] = newWire;
         newWire.SetCoordinate(coordinate);
         newWire.Orient();
+        worldRenderer.UpdateAtCoordinate(coordinate);
+        worldRenderer.UpdateAtCoordinate(coordinate.Up());
+        worldRenderer.UpdateAtCoordinate(coordinate.Down());
+        worldRenderer.UpdateAtCoordinate(coordinate.Left());
+        worldRenderer.UpdateAtCoordinate(coordinate.Right());
     }
 
     public static void SetSpriteIndex(Coordinate coordinate, int spriteIndex)
     {
         tree.SetSpriteIndex(coordinate, spriteIndex);
+        worldRenderer.UpdateAtCoordinate(coordinate);
     }
 
     public static void PlaceTile(Coordinate coordinate, TID id, TileBehavior behavior, int spriteIndex)
@@ -170,6 +228,7 @@ public static class World
             behavior.Initialize();
             tileBehaviors[coordinate] = behavior;
         }
+        worldRenderer.UpdateAtCoordinate(coordinate);
     }
 
     public static void BreakTile(Coordinate coordinate)
@@ -180,6 +239,7 @@ public static class World
             tileBehaviors.Remove(coordinate);
         }
         tree.RemoveTile(coordinate);
+        worldRenderer.UpdateAtCoordinate(coordinate);
     }
 
     public static void BreakTileAtCursor()
@@ -212,10 +272,11 @@ public static class World
 
     public static void Annihilate(Coordinate coordinate)
     {
-        tree.SetTile(coordinate, new Tile(TID.NULL));
+        tree.SetTile(coordinate, new Tile(false, false, TID.NULL, BID.NULL));
         tileBehaviors.Remove(coordinate);
         wires.Remove(coordinate);
         overlays.Remove(coordinate);
+        worldRenderer.UpdateAtCoordinate(coordinate);
     }
 
     public static void AnnihilateAtCursor()
@@ -289,6 +350,8 @@ public static class World
                 tileBehaviors.Add(destinations[i], behavior);
             }
             tree.InsertTile(destinations[i], tile.ID(), tile.HasBehavior(), tile.SpriteIndex());
+            worldRenderer.UpdateAtCoordinate(tilesToMove[i]);
+            worldRenderer.UpdateAtCoordinate(destinations[i]);
         }
 
         tilesToMove.Clear();
